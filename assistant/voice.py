@@ -36,7 +36,8 @@ class Voice:
                 env = dict(os.environ, HF_HUB_OFFLINE='1', OMP_NUM_THREADS='1',
                            OPENBLAS_NUM_THREADS='1', HF_HUB_DISABLE_TELEMETRY='1')
                 proc = await asyncio.create_subprocess_exec(
-                    self.python, str(Path(__file__).with_name('voice_worker.py')),
+                    # Isolate sys.path so assistant/calendar.py cannot shadow stdlib calendar.
+                    self.python, '-I', str(Path(__file__).with_name('voice_worker.py')),
                     self.model, str(audio),
                     stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL,
                     env=env)

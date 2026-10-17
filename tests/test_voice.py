@@ -29,6 +29,7 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(await self.recognizer.transcribe(self.voice), 'Покажи встречи завтра')
         self.assertEqual(list(self.root.iterdir()), [])
         self.assertEqual(spawn.call_args.kwargs['env']['HF_HUB_OFFLINE'], '1')
+        self.assertEqual(spawn.call_args.args[1], '-I')
 
     async def test_limits_before_download(self):
         for field, value in [('duration', 61), ('file_size', 6 * 1024 * 1024)]:
