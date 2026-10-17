@@ -11,15 +11,32 @@ from .auth import Auth
 from .calendar import Calendar
 from .store import Store
 from .agent import Agent
+from .formatting import formatted_messages
 
 log = logging.getLogger(__name__)
 
 def allowed(update, owner):
     return bool(update.effective_user and update.effective_user.id == owner and update.effective_chat and update.effective_chat.type == 'private')
 
-async def send(message, text, **kwargs):
-    for offset in range(0, len(text), 4000):
-        await message.reply_text(text[offset:offset+4000], **(kwargs if offset + 4000 >= len(text) else {}))
+async def send(message, text, *, formatted=False, **kwargs):
+    if formatted:
+        chunks = formatted_messages(text)
+    else:
+        # Escape literal calendar titles and errors from Markdown interpretation.
+        from .formatting import utf16_length
+        chunks, part, size = [], '', 0
+        for char in text:
+            width = utf16_length(char)
+            if size + width > 4000:
+                chunks.append((part, []))
+                part, size = '', 0
+            part += char
+            size += width
+        if part:
+            chunks.append((part, []))
+    for index, (part, entities) in enumerate(chunks):
+        await message.reply_text(part, entities=entities, parse_mode=None,
+                                 **(kwargs if index == len(chunks) - 1 else {}))
 
 def main():
     os.umask(0o077)
@@ -88,7 +105,7 @@ def main():
             except ValueError as exc:
                 await send(update.message, str(exc))
                 return
-            await send(update.message, text)
+            await send(update.message, text, formatted=True)
             for key, label in buttons:
                 await send(update.message, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),

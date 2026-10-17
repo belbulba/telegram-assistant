@@ -11,6 +11,8 @@ httpx==0.28.1
 idna==3.20
 jiter==0.17.0
 msal==1.39.0
+markdown-it-py==4.0.0
+mdurl==0.1.2
 openai==2.54.0
 pycparser==3.11
 pydantic==2.14.1
