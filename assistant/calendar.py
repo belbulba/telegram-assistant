@@ -40,7 +40,7 @@ class Calendar:
     async def list(self, start, end):
         if self.instant(end) <= self.instant(start):
             raise ValueError('Неверный диапазон дат.')
-        params = {'startDateTime': start, 'endDateTime': end, '$top': '100', '$select': 'id,subject,start,end,isReminderOn,reminderMinutesBeforeStart,type', '$orderby': 'start/dateTime'}
+        params = {'startDateTime': start, 'endDateTime': end, '$top': '100', '$select': 'id,subject,start,end,isAllDay,isReminderOn,reminderMinutesBeforeStart,type', '$orderby': 'start/dateTime'}
         result = await self.request('GET', '/me/calendarView', params=params)
         events = result.get('value', [])
         # Follow only Graph-owned pagination paths; never send OAuth tokens to another host.

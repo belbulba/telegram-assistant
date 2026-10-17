@@ -4,7 +4,7 @@ import os
 import sys
 import fcntl
 from .chatgpt import PlanClient
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
 from .config import data_dir, required
 from .auth import Auth
@@ -12,6 +12,7 @@ from .calendar import Calendar
 from .store import Store
 from .agent import Agent
 from .formatting import formatted_messages
+from . import menu
 
 log = logging.getLogger(__name__)
 
@@ -72,11 +73,22 @@ def main():
 
     async def start(update, context):
         if allowed(update, owner):
-            await update.message.reply_text('Привет! Использую твою подписку ChatGPT. Пиши по-русски. /reset — очистить контекст, /status — подключения, /usage — лимиты подписки. Для создания встречи укажи время и длительность.')
+            await update.message.reply_text('Привет! Пиши мне или выбирай действие в меню. Использую твою подписку ChatGPT и календарь Outlook. Время — ' + calendar.tz.key + '. /menu — показать кнопки, /reset — очистить контекст.', reply_markup=menu.keyboard())
 
     async def usage(update, context):
         if allowed(update, owner):
-            await update.message.reply_text('Используется подписка ChatGPT. Управление лимитами и доступом: https://chatgpt.com/#settings/Usage')
+            await update.message.reply_text('Используется подписка ChatGPT. Точный остаток и время обновления лимита мне недоступны. Посмотреть использование и лимит приложения можно в настройках ChatGPT. Просмотр календаря кнопками меню не расходует запросы к модели.', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Открыть лимиты ChatGPT', url='https://chatgpt.com/#settings/Usage')]]))
+
+    async def schedule(update, context, period=None):
+        if not allowed(update, owner):
+            return
+        period = period or {'/today': 'today', '/tomorrow': 'tomorrow', '/week': 'week'}[update.message.text.split()[0].split('@')[0]]
+        async with mutex:
+            try:
+                text = await menu.agenda(calendar, period)
+            except (ValueError, RuntimeError) as exc:
+                text = str(exc)
+            await send(update.message, text, reply_markup=menu.keyboard())
 
     async def reset(update, context):
         if allowed(update, owner):
@@ -95,6 +107,19 @@ def main():
     async def message(update, context):
         if not allowed(update, owner):
             return
+        selected = update.message.text
+        if selected in menu.PERIODS:
+            await schedule(update, context, menu.PERIODS[selected])
+            return
+        if selected == menu.USAGE:
+            await usage(update, context)
+            return
+        if selected == menu.STATUS:
+            await status(update, context)
+            return
+        if selected == menu.ADD:
+            await update.message.reply_text('Напиши название, дату, время и длительность встречи. Например:\n\nДобавь завтра встречу с Антоном с 15:00 до 15:30, напомни за 15 минут.\n\nЕсли чего-то не хватает, я уточню. Время — ' + calendar.tz.key + '.', reply_markup=menu.keyboard())
+            return
         if len(update.message.text) > 16000:
             await update.message.reply_text('Сообщение слишком длинное. Разбей его на части до 16000 символов.')
             return
@@ -105,7 +130,7 @@ def main():
             except ValueError as exc:
                 await send(update.message, str(exc))
                 return
-            await send(update.message, text, formatted=True)
+            await send(update.message, text, formatted=True, reply_markup=menu.keyboard())
             for key, label in buttons:
                 await send(update.message, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
                     InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),
@@ -143,8 +168,21 @@ def main():
         await client.close()
         store.db.close()
 
-    app = Application.builder().token(token).concurrent_updates(False).post_shutdown(shutdown).build()
+    async def setup_menu(app):
+        await app.bot.set_my_commands([
+            BotCommand('menu', 'Показать кнопки'),
+            BotCommand('today', 'События на сегодня'),
+            BotCommand('tomorrow', 'События на завтра'),
+            BotCommand('week', 'Ближайшие 7 дней'),
+            BotCommand('status', 'Подключения'),
+            BotCommand('usage', 'Лимиты подписки'),
+            BotCommand('reset', 'Очистить историю диалога'),
+        ])
+
+    app = Application.builder().token(token).concurrent_updates(False).post_init(setup_menu).post_shutdown(shutdown).build()
     app.add_handler(CommandHandler('start', start))
+    app.add_handler(CommandHandler('menu', start))
+    app.add_handler(CommandHandler(['today', 'tomorrow', 'week'], schedule))
     app.add_handler(CommandHandler('reset', reset))
     app.add_handler(CommandHandler('status', status))
     app.add_handler(CommandHandler('usage', usage))
