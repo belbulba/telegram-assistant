@@ -1,5 +1,8 @@
 # Личный Telegram-ассистент с Outlook
 
+Для продолжения разработки с другого компьютера см. [CONTINUE.md](CONTINUE.md)
+и [журнал работы за 17.10.2026](docs/worklog/2026-10-17.md).
+
 Python 3.11+ (проверено на Python 3.13, macOS Ventura Intel). Long polling, ChatGPT plan usage через официальный OpenAI SDK и streaming Responses API с function calling, Microsoft Graph v1.0 delegated OAuth device flow, SQLite. Пишет по-русски; часовой пояс Europe/Minsk. Все изменения и удаления требуют кнопки подтверждения, действующей 10 минут. Создания выполняются сразу по вашему запросу.
 
 ## 1. Установка

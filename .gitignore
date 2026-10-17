@@ -14,3 +14,5 @@ __pycache__/
 chatgpt-session.json
 chatgpt-host.json
 msal-cache.json
+DEPLOYMENT.local.md
+backups/
