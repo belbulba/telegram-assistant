@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 import tempfile
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.helpers import escape_markdown
 
 MAX_SECONDS = 60
 MAX_BYTES = 5 * 1024 * 1024
@@ -57,8 +57,13 @@ class Voice:
                         await proc.wait()
 
 
-async def receive_voice(message, recognizer, store):
-    await message.reply_text('Распознаю голосовое… Затем покажу текст для подтверждения.')
+def with_transcript(answer, transcript=None):
+    if transcript is None:
+        return answer
+    return '**Распознано:**\n' + escape_markdown(transcript, version=2) + '\n\n' + answer
+
+
+async def receive_voice(message, recognizer, respond):
     try:
         text = await recognizer.transcribe(message.voice)
     except (ValueError, OSError, KeyError) as exc:
@@ -66,9 +71,4 @@ async def receive_voice(message, recognizer, store):
         result = str(exc) if isinstance(exc, ValueError) and not isinstance(exc, json.JSONDecodeError) else 'Не удалось обработать голосовое. Попробуй ещё раз или напиши текстом.'
         await message.reply_text(result)
         return
-    key = store.stage({'action': 'voice_text', 'text': text})
-    from .main import send
-    await send(message, 'Я услышал:\n\n' + text + '\n\nВыполнить этот запрос? Проверь даты, время и имена. Кнопки действуют 10 минут.',
-               reply_markup=InlineKeyboardMarkup([[
-                   InlineKeyboardButton('Выполнить', callback_data='voice:' + key),
-                   InlineKeyboardButton('Отмена', callback_data='voice_no:' + key)]]))
+    await respond(text)

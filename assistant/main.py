@@ -6,6 +6,7 @@ import fcntl
 from .chatgpt import PlanClient
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters
+from telegram.helpers import escape_markdown
 from .config import data_dir, required
 from .auth import Auth
 from .calendar import Calendar
@@ -13,7 +14,7 @@ from .store import Store
 from .agent import Agent
 from .formatting import formatted_messages
 from . import menu
-from .voice import Voice, receive_voice
+from .voice import Voice, receive_voice, with_transcript
 
 log = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ def main():
 
     async def start(update, context):
         if allowed(update, owner):
-            await update.message.reply_text('Привет! Пиши мне, присылай голосовое до минуты или выбирай действие в меню. Расшифровку голосового покажу перед выполнением. Использую твою подписку ChatGPT и календарь Outlook. Время — ' + calendar.tz.key + '. /menu — показать кнопки, /reset — очистить контекст.', reply_markup=menu.keyboard())
+            await update.message.reply_text('Привет! Пиши мне, присылай голосовое до минуты или выбирай действие в меню. Голосовое обработаю сразу: пришлю расшифровку вместе с ответом. Использую твою подписку ChatGPT, веб-поиск и календарь Outlook. Время — ' + calendar.tz.key + '. /menu — показать кнопки, /reset — очистить контекст.', reply_markup=menu.keyboard())
 
     async def usage(update, context):
         if allowed(update, owner):
@@ -128,14 +129,17 @@ def main():
         async with mutex:
             await answer(update.message, update.message.text, context)
 
-    async def answer(target, request, context):
+    async def answer(target, request, context, transcript=None):
         await context.bot.send_chat_action(target.chat_id, 'typing')
         try:
             text, buttons = await agent.answer(request)
         except ValueError as exc:
-            await send(target, str(exc))
+            if transcript is None:
+                await send(target, str(exc))
+            else:
+                await send(target, with_transcript(escape_markdown(str(exc), version=2), transcript), formatted=True)
             return
-        await send(target, text, formatted=True, reply_markup=menu.keyboard())
+        await send(target, with_transcript(text, transcript), formatted=True, reply_markup=menu.keyboard())
         for key, label in buttons:
             await send(target, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),
@@ -144,7 +148,10 @@ def main():
     async def voice_message(update, context):
         if allowed(update, owner):
             async with mutex:
-                await receive_voice(update.message, voice_recognizer, store)
+                await context.bot.send_chat_action(update.effective_chat.id, 'typing')
+                async def respond(text):
+                    await answer(update.message, text, context, transcript=text)
+                await receive_voice(update.message, voice_recognizer, respond)
 
     async def voice_confirm(update, context):
         if not allowed(update, owner):

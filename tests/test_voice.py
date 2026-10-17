@@ -6,8 +6,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from assistant.store import Store
-from assistant.voice import Voice, receive_voice
+from assistant.voice import Voice, receive_voice, with_transcript
 
 
 class VoiceTests(unittest.IsolatedAsyncioTestCase):
@@ -69,17 +68,30 @@ class VoiceTests(unittest.IsolatedAsyncioTestCase):
                     await self.recognizer.transcribe(self.voice)
             self.assertEqual(list(self.root.iterdir()), [])
 
-    async def test_receipt_stages_text_without_executing_it(self):
-        store = Store(self.root / 'db')
-        self.addCleanup(store.db.close)
+    async def test_receipt_immediately_dispatches_text_without_confirmation(self):
         message = SimpleNamespace(voice=self.voice, reply_text=AsyncMock())
         recognizer = SimpleNamespace(transcribe=AsyncMock(return_value='Добавь встречу завтра'))
-        await receive_voice(message, recognizer, store)
-        keyboard = message.reply_text.call_args.kwargs['reply_markup']
-        key = keyboard.inline_keyboard[0][0].callback_data.split(':')[1]
-        self.assertEqual(store.take(key), {'action': 'voice_text', 'text': 'Добавь встречу завтра'})
-        self.assertIsNone(store.take(key))
-        self.assertEqual(store.history(), [])
+        respond = AsyncMock()
+        await receive_voice(message, recognizer, respond)
+        respond.assert_awaited_once_with('Добавь встречу завтра')
+        message.reply_text.assert_not_awaited()
+
+    async def test_failed_recognition_does_not_dispatch(self):
+        message = SimpleNamespace(voice=self.voice, reply_text=AsyncMock())
+        recognizer = SimpleNamespace(transcribe=AsyncMock(side_effect=ValueError('Не удалось разобрать речь.')))
+        respond = AsyncMock()
+        await receive_voice(message, recognizer, respond)
+        respond.assert_not_awaited()
+
+    def test_transcript_and_answer_share_message_without_transcript_markup(self):
+        from assistant.formatting import formatted_messages
+        text = with_transcript('**Ответ:** готово', '**завтра** [подмена](https://example.com)')
+        chunks = formatted_messages(text)
+        self.assertEqual(len(chunks), 1)
+        rendered, entities = chunks[0]
+        self.assertIn('**завтра** [подмена](https://example.com)', rendered)
+        self.assertIn('Ответ: готово', rendered)
+        self.assertFalse(any(entity.type == 'text_link' for entity in entities))
 
     async def test_concurrent_requests_run_one_worker_at_a_time(self):
         active = 0
