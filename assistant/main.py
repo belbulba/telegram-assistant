@@ -13,6 +13,7 @@ from .store import Store
 from .agent import Agent
 from .formatting import formatted_messages
 from . import menu
+from .voice import Voice, receive_voice
 
 log = logging.getLogger(__name__)
 
@@ -70,10 +71,11 @@ def main():
     calendar = Calendar(LazyOutlook(), os.getenv('TIMEZONE', 'Europe/Minsk'))
     agent = Agent(client, os.getenv('CHATGPT_MODEL', '').strip(), calendar, store)
     mutex = asyncio.Lock()
+    voice_recognizer = Voice(folder, os.getenv('VOICE_PYTHON', ''), os.getenv('VOICE_MODEL', ''))
 
     async def start(update, context):
         if allowed(update, owner):
-            await update.message.reply_text('Привет! Пиши мне или выбирай действие в меню. Использую твою подписку ChatGPT и календарь Outlook. Время — ' + calendar.tz.key + '. /menu — показать кнопки, /reset — очистить контекст.', reply_markup=menu.keyboard())
+            await update.message.reply_text('Привет! Пиши мне, присылай голосовое до минуты или выбирай действие в меню. Расшифровку голосового покажу перед выполнением. Использую твою подписку ChatGPT и календарь Outlook. Время — ' + calendar.tz.key + '. /menu — показать кнопки, /reset — очистить контекст.', reply_markup=menu.keyboard())
 
     async def usage(update, context):
         if allowed(update, owner):
@@ -124,17 +126,43 @@ def main():
             await update.message.reply_text('Сообщение слишком длинное. Разбей его на части до 16000 символов.')
             return
         async with mutex:
-            await context.bot.send_chat_action(update.effective_chat.id, 'typing')
-            try:
-                text, buttons = await agent.answer(update.message.text)
-            except ValueError as exc:
-                await send(update.message, str(exc))
+            await answer(update.message, update.message.text, context)
+
+    async def answer(target, request, context):
+        await context.bot.send_chat_action(target.chat_id, 'typing')
+        try:
+            text, buttons = await agent.answer(request)
+        except ValueError as exc:
+            await send(target, str(exc))
+            return
+        await send(target, text, formatted=True, reply_markup=menu.keyboard())
+        for key, label in buttons:
+            await send(target, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),
+                InlineKeyboardButton('Отмена', callback_data='no:' + key)]]))
+
+    async def voice_message(update, context):
+        if allowed(update, owner):
+            async with mutex:
+                await receive_voice(update.message, voice_recognizer, store)
+
+    async def voice_confirm(update, context):
+        if not allowed(update, owner):
+            return
+        query = update.callback_query
+        await query.answer()
+        async with mutex:
+            choice, key = query.data.split(':', 1)
+            pending = store.take(key)
+            if not pending or pending.get('action') != 'voice_text':
+                await query.edit_message_reply_markup(reply_markup=None)
+                await send(query.message, 'Подтверждение истекло или уже использовано.')
                 return
-            await send(update.message, text, formatted=True, reply_markup=menu.keyboard())
-            for key, label in buttons:
-                await send(update.message, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),
-                    InlineKeyboardButton('Отмена', callback_data='no:' + key)]]))
+            await query.edit_message_reply_markup(reply_markup=None)
+            if choice == 'voice_no':
+                await send(query.message, 'Голосовой запрос отменён.')
+                return
+            await answer(query.message, pending['text'], context)
 
     async def confirm(update, context):
         if not allowed(update, owner):
@@ -144,7 +172,7 @@ def main():
         async with mutex:
             choice, key = query.data.split(':', 1)
             pending = store.take(key)
-            if not pending:
+            if not pending or pending.get('action') not in ('update_event', 'delete_event'):
                 await query.edit_message_text('Подтверждение истекло или уже использовано.')
                 return
             if choice == 'no':
@@ -187,6 +215,8 @@ def main():
     app.add_handler(CommandHandler('status', status))
     app.add_handler(CommandHandler('usage', usage))
     app.add_handler(CallbackQueryHandler(confirm, pattern=r'^(yes|no):[a-f0-9]{32}$'))
+    app.add_handler(CallbackQueryHandler(voice_confirm, pattern=r'^(voice|voice_no):[a-f0-9]{32}$'))
+    app.add_handler(MessageHandler(filters.VOICE, voice_message))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message))
     app.add_error_handler(error)
     log.info('Запуск long polling; доступ ограничен личным чатом владельца.')

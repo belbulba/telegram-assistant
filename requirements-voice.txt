@@ -1,0 +1,4 @@
+# Install in a separate Python 3.12 venv, not in the bot venv.
+faster-whisper==1.2.1
+ctranslate2==4.8.3
+av==16.1.0
