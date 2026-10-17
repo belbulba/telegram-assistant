@@ -1,0 +1,21 @@
+[Unit]
+Description=Personal Telegram Outlook Assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=telegram-assistant
+WorkingDirectory=/opt/telegram-assistant
+ExecStart=/opt/telegram-assistant/.venv/bin/python -m assistant.main
+Restart=on-failure
+RestartSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/telegram-assistant/data
+
+[Install]
+WantedBy=multi-user.target
