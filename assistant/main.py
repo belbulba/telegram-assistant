@@ -70,7 +70,9 @@ def main():
             return self.auth.token()
 
     calendar = Calendar(LazyOutlook(), os.getenv('TIMEZONE', 'Europe/Minsk'))
-    agent = Agent(client, os.getenv('CHATGPT_MODEL', '').strip(), calendar, store)
+    persona_path = folder / 'persona.txt'
+    persona = persona_path.read_text(encoding='utf-8') if persona_path.exists() else ''
+    agent = Agent(client, os.getenv('CHATGPT_MODEL', '').strip(), calendar, store, persona=persona)
     mutex = asyncio.Lock()
     voice_recognizer = Voice(folder, os.getenv('VOICE_PYTHON', ''), os.getenv('VOICE_MODEL', ''))
 
