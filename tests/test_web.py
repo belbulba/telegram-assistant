@@ -26,6 +26,15 @@ def result(text, annotations, search=False):
 
 
 class WebTests(unittest.TestCase):
+    def test_search_sources_shown_when_message_omits_annotations(self):
+        response = result('Краткий ответ.', [], search=True)
+        response.output[0].action = SimpleNamespace(sources=[SimpleNamespace(
+            model_dump=lambda **kwargs: {'type': 'url', 'url': 'https://example.com/forecast'})])
+        text = cited_text(response)
+        self.assertIn('Источники поиска:', text)
+        links = [entity.url for _, entities in formatted_messages(text) for entity in entities if entity.type == 'text_link']
+        self.assertEqual(links, ['https://example.com/forecast'])
+
     def test_inline_citation_becomes_clickable_telegram_link(self):
         text = '🚗 Новость. citeturn0search0'
         annotation = {'type': 'url_citation', 'start_index': text.index(''), 'end_index': len(text),

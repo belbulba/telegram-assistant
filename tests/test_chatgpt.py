@@ -73,7 +73,9 @@ class SubscriptionTests(unittest.IsolatedAsyncioTestCase):
                 plan.selected_model = 'available-model'
                 with patch('assistant.chatgpt.AsyncOpenAI', return_value=context) as factory:
                     if terminal == 'response.completed':
-                        self.assertIs(await plan.create(input='test', store=True), response)
+                        self.assertIs(await plan.create(input='test', store=True, include=['web_search_call.action.sources']), response)
+                        self.assertEqual(sdk.responses.create.call_args.kwargs['include'],
+                                         ['reasoning.encrypted_content', 'web_search_call.action.sources'])
                     else:
                         with self.assertRaises(ValueError):
                             await plan.create(input='test')

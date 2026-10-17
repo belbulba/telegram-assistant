@@ -19,7 +19,15 @@ def source_link(citation):
 
 def cited_text(response):
     parts = []
+    sources = []
+    has_citations = False
     for item in response.output:
+        if item.type == 'web_search_call':
+            action = getattr(item, 'action', None)
+            for source in getattr(action, 'sources', None) or []:
+                link = source_link(source.model_dump(mode='json'))
+                if link and link not in sources:
+                    sources.append(link)
         if item.type != 'message':
             continue
         for block in getattr(item, 'content', []):
@@ -35,6 +43,7 @@ def cited_text(response):
                 link = source_link(citation)
                 if not link:
                     continue
+                has_citations = True
                 start, end = citation.get('start_index'), citation.get('end_index')
                 if (type(start) is int and type(end) is int and 0 <= start < end <= len(text)):
                     ranges.setdefault((start, end), []).append(link)
@@ -54,4 +63,7 @@ def cited_text(response):
             if extra:
                 rendered += '\n\nИсточники: ' + ', '.join(extra)
             parts.append(rendered)
-    return '\n\n'.join(parts) if parts else response.output_text
+    rendered = '\n\n'.join(parts) if parts else response.output_text
+    if sources and not has_citations:
+        rendered += '\n\nИсточники поиска: ' + ', '.join(sources[:5])
+    return rendered

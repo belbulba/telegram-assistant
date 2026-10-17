@@ -205,7 +205,8 @@ class PlanClient:
     async def create(self, **kwargs):
         model = await self.model(kwargs.pop('model', ''))
         token = await self.auth.token()
-        kwargs.update(model=model, store=False, stream=True, include=['reasoning.encrypted_content'])
+        includes = list(dict.fromkeys(['reasoning.encrypted_content', *kwargs.pop('include', [])]))
+        kwargs.update(model=model, store=False, stream=True, include=includes)
         async with AsyncOpenAI(api_key=token, base_url=RESOURCE, timeout=90, max_retries=0) as client:
             stream = await client.responses.create(**kwargs)
             output_items = {}
