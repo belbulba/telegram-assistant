@@ -41,7 +41,8 @@ class Agent:
             response = await self.client.responses.create(model=self.model, instructions=instructions,
                 input=inputs, tools=TOOLS, parallel_tool_calls=False, store=False,
                 include=['web_search_call.action.sources'])
-            output = [item.model_dump(mode='json', exclude_none=True) for item in response.output]
+            # Search may return newer source variants (e.g. weather API) than the SDK schema.
+            output = [item.model_dump(mode='json', exclude_none=True, warnings=False) for item in response.output]
             inputs.extend(output)
             turn.extend(output)
             calls = [item for item in response.output if item.type == 'function_call']

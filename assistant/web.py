@@ -25,7 +25,9 @@ def cited_text(response):
         if item.type == 'web_search_call':
             action = getattr(item, 'action', None)
             for source in getattr(action, 'sources', None) or []:
-                link = source_link(source.model_dump(mode='json'))
+                if getattr(source, 'type', 'url') != 'url':
+                    continue
+                link = source_link(source.model_dump(mode='json', warnings=False))
                 if link and link not in sources:
                     sources.append(link)
         if item.type != 'message':
