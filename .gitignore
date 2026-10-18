@@ -14,5 +14,8 @@ __pycache__/
 chatgpt-session.json
 chatgpt-host.json
 msal-cache.json
+client_secret*.json
+google-client*.json
+gmail-token*.json
 DEPLOYMENT.local.md
 backups/

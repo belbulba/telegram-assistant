@@ -12,6 +12,8 @@ from .auth import Auth
 from .calendar import Calendar
 from .store import Store
 from .agent import Agent
+from .gmail import Gmail
+from .google_auth import GoogleAuth
 from .formatting import formatted_messages
 from . import menu
 from .voice import Voice, receive_voice, with_transcript
@@ -72,7 +74,8 @@ def main():
     calendar = Calendar(LazyOutlook(), os.getenv('TIMEZONE', 'Europe/Minsk'))
     persona_path = folder / 'persona.txt'
     persona = persona_path.read_text(encoding='utf-8') if persona_path.exists() else ''
-    agent = Agent(client, os.getenv('CHATGPT_MODEL', '').strip(), calendar, store, persona=persona)
+    gmail = Gmail(GoogleAuth()) if (folder / 'gmail-token.json').is_file() else None
+    agent = Agent(client, os.getenv('CHATGPT_MODEL', '').strip(), calendar, store, persona=persona, gmail=gmail)
     mutex = asyncio.Lock()
     voice_recognizer = Voice(folder, os.getenv('VOICE_PYTHON', ''), os.getenv('VOICE_MODEL', ''))
 

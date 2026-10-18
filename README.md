@@ -45,6 +45,46 @@ OAuth-сеанс и идентификатор установки хранятс
 - https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
 - https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions
 
+## Gmail и заметки iPhone
+
+В Google Cloud создайте проект и включите Gmail API. В Google Auth Platform
+настройте Branding (название и контактный email), Audience — External,
+для первого теста добавьте свой Google-аккаунт в Test users. В Data Access
+добавьте `https://www.googleapis.com/auth/gmail.modify`. Создайте OAuth client
+типа Desktop app, скачайте JSON и сохраните приватно в `data/google-client.json`.
+Это отдельная авторизация от Google, подключённого на iPhone или в ChatGPT.
+
+Запустите `./google-login.command` на Mac и откройте напечатанную ссылку
+в браузере того же компьютера. Используется локальный callback 127.0.0.1,
+случайный порт, PKCE и тайм-аут 10 минут. Не присылайте callback URL или JSON
+в чат. Refresh token сохраняется атомарно в `data/gmail-token.json` с правами
+600. При необходимости передайте файл на VPS по SSH в каталог DATA_DIR,
+назначив владельца пользователя службы и права 600. Постоянный клиент
+`GoogleAuth.token()` обновляет истёкший доступ. Одновременно обновлять один
+файл должен только один процесс.
+
+В Testing согласие и refresh token истекают через 7 дней. Для постоянного
+личного использования настройте Production перед финальной авторизацией;
+personal-use приложения могут подпадать под исключение из проверки Google.
+Production не означает гарантированно бессрочный доступ.
+
+При наличии `data/gmail-token.json` на старте бот включает создание заметок.
+Напишите или скажите «Создай заметку Идеи: съездить в Брест». Запись появляется
+в разделе Gmail / Notes приложения «Заметки» iPhone, если Google подключён
+там с включённой синхронизацией заметок. Проверка на iPhone владельца прошла.
+Создание выполняется сразу; текст и переносы строк сохраняются, HTML экранируется.
+При неопределённом результате проверьте Notes перед повтором. Чтение, изменение
+и удаление заметок, а также почтовые инструменты пока не реализованы.
+
+Для диагностики без изменения писем: `.venv/bin/python -m assistant.gmail_check`.
+Опция `--create-test-note` добавляет одну тестовую запись; локальный маркер
+предотвращает повторную отправку при повторном запуске. `gmail.modify` допускает
+будущие почтовые операции; немедленное безвозвратное удаление не требуется.
+
+Источники: [Google Desktop OAuth](https://developers.google.com/identity/protocols/oauth2/native-app),
+[Audience](https://support.google.com/cloud/answer/15549945),
+[исключения для personal use](https://support.google.com/cloud/answer/13464323).
+
 ## 4. Microsoft Outlook OAuth
 
 Нужна учётная запись Microsoft с календарём Outlook/Exchange Online.
