@@ -104,11 +104,11 @@ def main():
 
     async def start(update, context):
         if allowed(update, owner):
-            await update.message.reply_text('Привет! Пиши мне, присылай голосовое до минуты или выбирай действие в меню. Голосовое обработаю сразу: пришлю расшифровку вместе с ответом. Использую твою подписку ChatGPT, веб-поиск и календарь Outlook. Время — ' + calendar.tz.key + '. /menu — показать кнопки, /reset — очистить контекст.', reply_markup=menu.keyboard())
+            await update.message.reply_text(menu.command_menu(calendar.tz.key), reply_markup=menu.remove_keyboard())
 
     async def usage(update, context):
         if allowed(update, owner):
-            await update.message.reply_text('Используется подписка ChatGPT. Точный остаток и время обновления лимита мне недоступны. Посмотреть использование и лимит приложения можно в настройках ChatGPT. Просмотр календаря кнопками меню не расходует запросы к модели.', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Открыть лимиты ChatGPT', url='https://chatgpt.com/#settings/Usage')]]))
+            await update.message.reply_text('Используется подписка ChatGPT. Точный остаток и время обновления лимита мне недоступны. Посмотреть использование и лимит приложения можно в настройках ChatGPT. Просмотр календаря командами /today, /tomorrow и /week не расходует запросы к модели.', reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('Открыть лимиты ChatGPT', url='https://chatgpt.com/#settings/Usage')]]))
 
     async def schedule(update, context, period=None):
         if not allowed(update, owner):
@@ -119,7 +119,7 @@ def main():
                 text = await menu.agenda(calendar, period)
             except (ValueError, RuntimeError) as exc:
                 text = str(exc)
-            await send(update.message, text, reply_markup=menu.keyboard())
+            await send(update.message, text, reply_markup=menu.remove_keyboard())
 
     async def reset(update, context):
         if allowed(update, owner):
@@ -170,7 +170,7 @@ def main():
             await status(update, context)
             return
         if selected == menu.ADD:
-            await update.message.reply_text('Напиши название, дату, время и длительность встречи. Например:\n\nДобавь завтра встречу с Антоном с 15:00 до 15:30, напомни за 15 минут.\n\nЕсли чего-то не хватает, я уточню. Время — ' + calendar.tz.key + '.', reply_markup=menu.keyboard())
+            await update.message.reply_text('Напиши название, дату, время и длительность встречи. Например:\n\nДобавь завтра встречу с Антоном с 15:00 до 15:30, напомни за 15 минут.\n\nЕсли чего-то не хватает, я уточню. Время — ' + calendar.tz.key + '.', reply_markup=menu.remove_keyboard())
             return
         if len(update.message.text) > 16000:
             await update.message.reply_text('Сообщение слишком длинное. Разбей его на части до 16000 символов.')
@@ -188,7 +188,7 @@ def main():
             else:
                 await send(target, with_transcript(escape_markdown(str(exc), version=2), transcript), formatted=True)
             return
-        await send(target, with_transcript(text, transcript), formatted=True, reply_markup=menu.keyboard())
+        await send(target, with_transcript(text, transcript), formatted=True, reply_markup=menu.remove_keyboard())
         for key, label in buttons:
             await send(target, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),
@@ -261,7 +261,7 @@ def main():
     async def setup_menu(app):
         nonlocal notifier_task
         await app.bot.set_my_commands([
-            BotCommand('menu', 'Показать кнопки'),
+            BotCommand('menu', 'Список команд'),
             BotCommand('today', 'События на сегодня'),
             BotCommand('tomorrow', 'События на завтра'),
             BotCommand('week', 'Ближайшие 7 дней'),

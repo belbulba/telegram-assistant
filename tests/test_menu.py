@@ -44,8 +44,9 @@ class AgendaTests(unittest.IsolatedAsyncioTestCase):
             await menu.agenda(self.calendar, 'unknown', self.now)
         self.calendar.list.assert_not_called()
 
-    def test_keyboard_is_persistent(self):
-        keyboard = menu.keyboard()
-        self.assertTrue(keyboard.is_persistent)
-        self.assertEqual(len(keyboard.keyboard), 3)
-        self.assertEqual(keyboard.keyboard[1][1].text, menu.ADD)
+    def test_menu_removes_keyboard_and_lists_commands(self):
+        self.assertTrue(menu.remove_keyboard().remove_keyboard)
+        text = menu.command_menu('Europe/Minsk')
+        for command in ('/today', '/tomorrow', '/week', '/status', '/usage', '/reset', '/codes', '/menu'):
+            self.assertIn(command, text)
+        self.assertIn('Europe/Minsk', text)

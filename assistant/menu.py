@@ -1,7 +1,7 @@
 """Calendar shortcuts that do not spend model usage."""
 from datetime import datetime, timedelta, timezone
 
-from telegram import ReplyKeyboardMarkup
+from telegram import ReplyKeyboardRemove
 
 TODAY = '📅 Сегодня'
 TOMORROW = '🌅 Завтра'
@@ -12,10 +12,27 @@ USAGE = '📊 Лимиты'
 PERIODS = {TODAY: 'today', TOMORROW: 'tomorrow', WEEK: 'week'}
 
 
-def keyboard():
-    return ReplyKeyboardMarkup([[TODAY, TOMORROW], [WEEK, ADD], [STATUS, USAGE]],
-                               resize_keyboard=True, is_persistent=True,
-                               input_field_placeholder='Сообщение или кнопка меню')
+def remove_keyboard():
+    return ReplyKeyboardRemove()
+
+
+def command_menu(timezone):
+    return (
+        'Пиши текстом или присылай голосовое до минуты.\n'
+        'Команды:\n'
+        '/today — события на сегодня\n'
+        '/tomorrow — события на завтра\n'
+        '/week — ближайшие 7 дней\n'
+        '/status — подключения\n'
+        '/usage — лимиты подписки\n'
+        '/codes — статус уведомлений с кодами\n'
+        '/codes on или /codes off — включить или выключить уведомления\n'
+        '/reset — очистить историю диалога\n'
+        '/menu — список команд\n\n'
+        'Встречи, письма и заметки — обычными словами. Например: '
+        '«Добавь завтра встречу с Антоном с 15:00 до 15:30».\n'
+        'Часовой пояс — ' + timezone + '.'
+    )
 
 
 def event_time(value, tz):
