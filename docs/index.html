@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Личный помощник в Telegram · Telegram Personal Assistant</title>
+<meta name="description" content="Описание Telegram Personal Assistant: календарь Outlook, почта Gmail, заметки iPhone, голосовые запросы и уведомления с одноразовыми кодами.">
+<meta name="theme-color" content="#f5cd47">
+<link rel="canonical" href="https://belbulba.github.io/telegram-assistant/">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">К содержанию</a>
+<header class="header"><div class="wrap header-inner"><a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">✳</span><span>Telegram<br>Personal Assistant</span></a><nav aria-label="Основная навигация"><a href="index.html" aria-current="page">О проекте</a><a href="privacy.html">Конфиденциальность</a><a href="terms.html">Условия</a></nav></div></header>
+<main id="main" class="wrap">
+<section class="hero">
+<div><p class="eyebrow">ЛИЧНЫЙ TELEGRAM-АССИСТЕНТ</p><h1>Дела, письма и мысли.<br><span>В одном диалоге.</span></h1><p class="lead">Telegram Personal Assistant помогает владельцу управлять календарём Outlook, работать с Gmail и сохранять заметки, которые появляются на iPhone.</p><div class="actions"><a class="button" href="#features">Что умеет бот <span aria-hidden="true">↗</span></a><a class="text-link" href="privacy.html">Как используются данные →</a></div><p class="quiet">Доступ к работающему боту ограничен личным чатом владельца. Исходный код доступен для собственной установки.</p></div>
+<aside class="hero-note" aria-label="Примеры запросов"><div class="note-heading"><span class="dot"></span>Можно просто написать</div><p>«Что у меня завтра?»</p><p>«Что в заметках про фильмы?»</p><p>«Разбери письма от магазина по ярлыку “Покупки”»</p><p>«Сохрани идею для отпуска»</p><div class="note-foot">Текстом или голосом — до одной минуты.</div></aside>
+</section>
+<section id="features" class="section"><div class="section-heading"><p class="eyebrow">ПОДКЛЮЧЕНИЯ И ВОЗМОЖНОСТИ</p><h2>Меньше переключений.<br>Больше сделанного.</h2></div><div class="feature-list">
+<article><span class="number">01</span><div><h3>Календарь Outlook</h3><p>Просмотр встреч, создание событий, изменение времени и напоминаний. Перенос и удаление требуют подтверждения в Telegram. Используется основной календарь.</p></div><span class="tag">Microsoft Graph</span></article>
+<article><span class="number">02</span><div><h3>Почта Gmail</h3><p>Поиск и чтение писем, пересказ по запросу, отметка прочитанного, архив и пользовательские ярлыки. Перенос в корзину — после подтверждения. Безвозвратного удаления и отправки писем нет.</p></div><span class="tag">Google OAuth</span></article>
+<article><span class="number">03</span><div><h3>Заметки на iPhone</h3><p>Создание, поиск по словам и чтение заметок в Gmail / Notes. Синхронизация со стандартным приложением «Заметки» работает при включённой настройке Google на iPhone. Редактирование и удаление заметок пока недоступны.</p></div><span class="tag">Gmail / Notes</span></article>
+<article><span class="number">04</span><div><h3>Одноразовые коды</h3><p>Локальный обработчик проверяет новые письма примерно раз в 5 секунд. Если распознан свежий код подтверждения, отправляет владельцу название отправителя и код в личный Telegram-чат. Модель в этом не участвует.</p></div><span class="tag">Уведомления</span></article>
+<article><span class="number">05</span><div><h3>Голос и веб-поиск</h3><p>Голосовые до 60 секунд и 5 МБ распознаются локально на сервере. Запрос выполняется сразу, расшифровка приходит с ответом. Для актуальной информации доступен веб-поиск с источниками.</p></div><span class="tag">ChatGPT</span></article>
+</div></section>
+<section class="data-section section"><div><p class="eyebrow">ЗАЧЕМ НУЖЕН ДОСТУП GOOGLE</p><h2>Подключение почты<br>с понятной целью.</h2><p>Приложение запрашивает <code>gmail.modify</code> для чтения и поиска писем и заметок, создания записей Notes, управления прочитанностью, архивом, ярлыками и корзиной. Фоновая проверка использует этот же доступ для обнаружения одноразовых кодов.</p><p>При запросе к помощнику прочитанный текст письма или заметки передаётся модели для ответа. Автоматические коды извлекаются на сервере и отправляются в Telegram без передачи модели.</p><a class="text-link" href="privacy.html">Прочитать политику конфиденциальности →</a></div><aside class="data-note"><h3>Владелец управляет доступом</h3><ul><li>Google подключается через OAuth, без передачи пароля боту.</li><li><code>/codes off</code> выключает уведомления с кодами.</li><li><code>/reset</code> очищает историю диалога и ожидающие подтверждения.</li><li>Разрешение можно отозвать в настройках аккаунта Google.</li></ul><a href="terms.html">Условия и ограничения</a></aside></section>
+<section class="open-source section"><p class="eyebrow">ОТКРЫТЫЙ ПРОЕКТ</p><h2>Свой бот. Свои подключения.</h2><p>Python-приложение с открытым исходным кодом под лицензией MIT. Для самостоятельного запуска нужны собственные подключения Telegram, ChatGPT, Google и Microsoft. Публикация кода и этого сайта не открывает доступ к личной почте или календарю владельца.</p><a class="button" href="https://github.com/belbulba/telegram-assistant">Код и инструкция на GitHub ↗</a></section>
+</main>
+<footer class="wrap footer"><span>Личный помощник. Открытый код.</span><div><a href="https://github.com/belbulba/telegram-assistant">GitHub</a><a href="https://github.com/belbulba/telegram-assistant/issues">Связаться с разработчиком</a><a href="privacy.html">Конфиденциальность</a><a href="terms.html">Условия</a></div><small>Обновлено 18 октября 2026 года. Сайт описывает приложение и не предоставляет доступ к личному боту.</small></footer>
+</body></html>

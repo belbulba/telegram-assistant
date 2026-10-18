@@ -45,6 +45,20 @@ OAuth-сеанс и идентификатор установки хранятс
 - https://developers.openai.com/siwc/token-sharing-open-source/models-and-inference
 - https://developers.openai.com/siwc/token-sharing-open-source/profiles-and-sessions
 
+## Публичные страницы приложения
+
+Сайт GitHub Pages: https://belbulba.github.io/telegram-assistant/
+
+- Политика конфиденциальности: https://belbulba.github.io/telegram-assistant/privacy.html
+- Условия использования: https://belbulba.github.io/telegram-assistant/terms.html
+
+Статические файлы — docs/index.html, docs/privacy.html, docs/terms.html и
+стили docs/style.css. Публикация из main:/docs, .nojekyll отключает Jekyll.
+Сайт описывает фактическую обработку данных и не подключается к личным аккаунтам.
+При изменении обработки данных обновляйте эти страницы. Статус Google OAuth
+и подтверждение владения Google Search Console настраиваются отдельно;
+публикация сайта сама по себе не переводит приложение в Production.
+
 ## Gmail и заметки iPhone
 
 В Google Cloud создайте проект и включите Gmail API. В Google Auth Platform
