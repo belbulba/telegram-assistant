@@ -64,10 +64,10 @@ def main():
         def __init__(self):
             self.auth = None
 
-        def token(self):
+        def token(self, scopes=None):
             if self.auth is None:
                 self.auth = Auth()
-            return self.auth.token()
+            return self.auth.token(scopes)
 
     calendar = Calendar(LazyOutlook(), os.getenv('TIMEZONE', 'Europe/Minsk'))
     persona_path = folder / 'persona.txt'
