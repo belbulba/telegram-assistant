@@ -8,6 +8,7 @@ import time
 from .gmail import GmailError, body_text, headers
 
 log = logging.getLogger(__name__)
+POLL_INTERVAL = 5
 CONTEXT = re.compile(
     r'одноразов\w*\s+(?:временн\w*\s+)?(?:код|парол)|временн\w*\s+(?:код|парол)|'
     r'код\w*\s+(?:для\s+)?(?:подтверждени|вход|доступ|провер|безопасност|авторизац)|'
@@ -65,9 +66,9 @@ def notification(message):
 
 
 class CodeNotifier:
-    def __init__(self, gmail, store, bot, owner, interval=30):
+    def __init__(self, gmail, store, bot, owner, interval=POLL_INTERVAL):
         self.gmail, self.store, self.bot, self.owner = gmail, store, bot, owner
-        self.interval = max(15, interval)
+        self.interval = max(POLL_INTERVAL, interval)
 
     async def poll(self):
         if self.store.setting('otp_enabled') == '0':

@@ -16,7 +16,7 @@ from .store import Store
 from .agent import Agent
 from .gmail import Gmail
 from .google_auth import GoogleAuth
-from .otp import CodeNotifier
+from .otp import CodeNotifier, POLL_INTERVAL
 from .formatting import formatted_messages
 from . import menu
 from .voice import Voice, receive_voice, with_transcript
@@ -147,7 +147,7 @@ def main():
         enabled = store.setting('otp_enabled') != '0'
         last_ok = store.setting('otp_last_poll')
         health = 'Последняя успешная проверка: ' + datetime.fromtimestamp(float(last_ok), calendar.tz).strftime('%d.%m %H:%M:%S') if last_ok else 'Успешных проверок пока не было.'
-        await send(update.message, ('Уведомления с одноразовыми кодами включены. Проверка примерно раз в 30 секунд.' if enabled else 'Уведомления с кодами выключены.') + '\n' + health + '\nКоды приходят только в этот личный чат. Старые письма не пересылаются.')
+        await send(update.message, (f'Уведомления с одноразовыми кодами включены. Проверка примерно раз в {POLL_INTERVAL} секунд.' if enabled else 'Уведомления с кодами выключены.') + '\n' + health + '\nКоды приходят только в этот личный чат. Старые письма не пересылаются.')
 
     async def message(update, context):
         if not allowed(update, owner):
