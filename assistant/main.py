@@ -17,6 +17,7 @@ from .agent import Agent
 from .gmail import Gmail
 from .google_auth import GoogleAuth
 from .otp import CodeNotifier, POLL_INTERVAL
+from .reminders import ReminderNotifier
 from .formatting import formatted_messages
 from . import menu
 from .voice import Voice, receive_voice, with_transcript
@@ -47,7 +48,13 @@ async def send(message, text, *, formatted=False, **kwargs):
                                  **(kwargs if index == len(chunks) - 1 else {}))
 
 
-async def apply_confirmation(pending, calendar, gmail):
+async def apply_confirmation(pending, calendar, gmail, reminders=None):
+    if pending['action'] in ('update_reminder', 'cancel_reminder'):
+        if reminders is None:
+            raise RuntimeError('Напоминания недоступны.')
+        result = reminders.apply(pending['action'], **pending['args'])
+        return ('Напоминание Telegram отменено.' if pending['action'] == 'cancel_reminder' else
+                'Напоминание Telegram изменено: ' + result['title'] + '\nВремя: ' + result['remind_at']) + '\nСобытие Outlook не менялось.'
     if pending['action'] == 'update_note':
         if not gmail:
             raise RuntimeError('Gmail не подключён.')
@@ -63,7 +70,19 @@ async def apply_confirmation(pending, calendar, gmail):
     if pending['action'] not in ('update_event', 'delete_event'):
         raise ValueError('Неизвестное подтверждение.')
     await calendar.write(pending['action'], pending['args'], pending['etag'])
-    return 'Готово: изменение сохранено в Outlook.'
+    if reminders:
+        reminders.sync_event(pending['action'], pending['args'])
+    return 'Готово: изменение сохранено в Outlook. Связанные ожидающие Telegram-напоминания обновлены.'
+
+
+def destination_request(store, key, choice):
+    if choice not in ('both', 'telegram'):
+        raise ValueError('Неизвестное назначение.')
+    pending = store.take(key)
+    if not pending or pending.get('action') != 'schedule_destination':
+        raise ValueError('Выбор истёк или уже использован. Повторите запрос.')
+    label = 'Календарь + Telegram' if choice == 'both' else 'Только Telegram'
+    return pending['request'] + '\n\nЯ выбираю: ' + label + '.'
 
 def main():
     os.umask(0o077)
@@ -98,9 +117,11 @@ def main():
     persona = persona_path.read_text(encoding='utf-8') if persona_path.exists() else ''
     gmail = Gmail(GoogleAuth()) if (folder / 'gmail-token.json').is_file() else None
     agent = Agent(client, os.getenv('CHATGPT_MODEL', '').strip(), calendar, store, persona=persona, gmail=gmail)
+    reminders = agent.reminders
     mutex = asyncio.Lock()
     voice_recognizer = Voice(folder, os.getenv('VOICE_PYTHON', ''), os.getenv('VOICE_MODEL', ''))
     notifier_task = None
+    reminder_task = None
 
     async def start(update, context):
         if allowed(update, owner):
@@ -125,7 +146,11 @@ def main():
         if allowed(update, owner):
             async with mutex:
                 store.clear()
-            await update.message.reply_text('История и ожидающие подтверждения очищены.')
+            await update.message.reply_text('История и ожидающие подтверждения очищены. Запланированные напоминания сохранены.')
+
+    async def reminder_list(update, context):
+        if allowed(update, owner):
+            await send(update.message, reminders.overview(), reply_markup=menu.remove_keyboard())
 
     async def status(update, context):
         if allowed(update, owner):
@@ -178,10 +203,10 @@ def main():
         async with mutex:
             await answer(update.message, update.message.text, context)
 
-    async def answer(target, request, context, transcript=None):
+    async def answer(target, request, context, transcript=None, destination=None):
         await context.bot.send_chat_action(target.chat_id, 'typing')
         try:
-            text, buttons = await agent.answer(request)
+            text, buttons = await agent.answer(request, destination=destination)
         except ValueError as exc:
             if transcript is None:
                 await send(target, str(exc))
@@ -189,7 +214,13 @@ def main():
                 await send(target, with_transcript(escape_markdown(str(exc), version=2), transcript), formatted=True)
             return
         await send(target, with_transcript(text, transcript), formatted=True, reply_markup=menu.remove_keyboard())
-        for key, label in buttons:
+        for button in buttons:
+            key, label = button[:2]
+            if len(button) == 3 and button[2] == 'destination':
+                await send(target, label + '\nВыбор действует 10 минут.', reply_markup=InlineKeyboardMarkup([
+                    [InlineKeyboardButton('📅 Календарь + 🔔 Telegram', callback_data='dest_both:' + key)],
+                    [InlineKeyboardButton('🔔 Только Telegram', callback_data='dest_telegram:' + key)]]))
+                continue
             await send(target, label + '\nПодтвердить? (10 минут)', reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton('Подтвердить', callback_data='yes:' + key),
                 InlineKeyboardButton('Отмена', callback_data='no:' + key)]]))
@@ -228,18 +259,34 @@ def main():
         async with mutex:
             choice, key = query.data.split(':', 1)
             pending = store.take(key)
-            if not pending or pending.get('action') not in ('update_event', 'delete_event', 'trash_email', 'update_note'):
+            if not pending or pending.get('action') not in ('update_event', 'delete_event', 'trash_email', 'update_note', 'update_reminder', 'cancel_reminder'):
                 await query.edit_message_text('Подтверждение истекло или уже использовано.')
                 return
             if choice == 'no':
                 result = 'Действие отменено.'
             else:
                 try:
-                    result = await apply_confirmation(pending, calendar, gmail)
+                    result = await apply_confirmation(pending, calendar, gmail, reminders)
                 except (ValueError, RuntimeError) as exc:
                     result = 'Операция не завершена: ' + str(exc)
             store.add([{'role': 'user', 'content': 'Результат нажатия кнопки: ' + result}])
             await query.edit_message_text(result)
+
+    async def choose_destination(update, context):
+        if not allowed(update, owner):
+            return
+        query = update.callback_query
+        await query.answer()
+        async with mutex:
+            choice, key = query.data.split(':', 1)
+            choice = choice.removeprefix('dest_')
+            try:
+                request = destination_request(store, key, choice)
+            except ValueError as exc:
+                await query.edit_message_text(str(exc))
+                return
+            await query.edit_message_text('Выбрано: ' + ('календарь + Telegram.' if choice == 'both' else 'только Telegram.'))
+            await answer(query.message, request, context, destination=choice)
 
     async def error(update, context):
         # Avoid exception strings/tracebacks: request URLs can contain credentials.
@@ -253,13 +300,15 @@ def main():
         store.db.close()
 
     async def stop_background(app):
-        if notifier_task:
-            notifier_task.cancel()
+        for task in (notifier_task, reminder_task):
+            if not task:
+                continue
+            task.cancel()
             with suppress(asyncio.CancelledError):
-                await notifier_task
+                await task
 
     async def setup_menu(app):
-        nonlocal notifier_task
+        nonlocal notifier_task, reminder_task
         await app.bot.set_my_commands([
             BotCommand('menu', 'Список команд'),
             BotCommand('today', 'События на сегодня'),
@@ -269,7 +318,9 @@ def main():
             BotCommand('usage', 'Лимиты подписки'),
             BotCommand('reset', 'Очистить историю диалога'),
             BotCommand('codes', 'Уведомления с кодами: статус, on, off'),
+            BotCommand('reminders', 'Напоминания Telegram'),
         ])
+        reminder_task = asyncio.create_task(ReminderNotifier(reminders, app.bot, owner).run(), name='telegram-reminders')
         if gmail:
             notifier_task = asyncio.create_task(CodeNotifier(gmail, store, app.bot, owner).run(), name='gmail-codes')
 
@@ -281,6 +332,8 @@ def main():
     app.add_handler(CommandHandler('status', status))
     app.add_handler(CommandHandler('usage', usage))
     app.add_handler(CommandHandler('codes', codes))
+    app.add_handler(CommandHandler('reminders', reminder_list))
+    app.add_handler(CallbackQueryHandler(choose_destination, pattern=r'^dest_(both|telegram):[a-f0-9]{32}$'))
     app.add_handler(CallbackQueryHandler(confirm, pattern=r'^(yes|no):[a-f0-9]{32}$'))
     app.add_handler(CallbackQueryHandler(voice_confirm, pattern=r'^(voice|voice_no):[a-f0-9]{32}$'))
     app.add_handler(MessageHandler(filters.VOICE, voice_message))

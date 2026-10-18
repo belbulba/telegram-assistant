@@ -47,6 +47,6 @@ class AgendaTests(unittest.IsolatedAsyncioTestCase):
     def test_menu_removes_keyboard_and_lists_commands(self):
         self.assertTrue(menu.remove_keyboard().remove_keyboard)
         text = menu.command_menu('Europe/Minsk')
-        for command in ('/today', '/tomorrow', '/week', '/status', '/usage', '/reset', '/codes', '/menu'):
+        for command in ('/today', '/tomorrow', '/week', '/status', '/usage', '/reset', '/codes', '/menu', '/reminders'):
             self.assertIn(command, text)
         self.assertIn('Europe/Minsk', text)

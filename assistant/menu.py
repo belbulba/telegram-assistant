@@ -23,6 +23,7 @@ def command_menu(timezone):
         '/today — события на сегодня\n'
         '/tomorrow — события на завтра\n'
         '/week — ближайшие 7 дней\n'
+        '/reminders — напоминания Telegram\n'
         '/status — подключения\n'
         '/usage — лимиты подписки\n'
         '/codes — статус уведомлений с кодами\n'

@@ -12,6 +12,12 @@ class Store:
         CREATE TABLE IF NOT EXISTS pending(id TEXT PRIMARY KEY, body TEXT NOT NULL, created REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS otp_deliveries(id TEXT PRIMARY KEY, status TEXT NOT NULL, created REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS reminders(
+            id TEXT PRIMARY KEY, title TEXT NOT NULL, due REAL NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending', version INTEGER NOT NULL DEFAULT 1,
+            event_id TEXT, event_start REAL, retry_at REAL NOT NULL DEFAULT 0,
+            created REAL NOT NULL, delivered REAL);
+        CREATE INDEX IF NOT EXISTS reminders_due ON reminders(status, due);
         ''')
         self.db.commit()
 
