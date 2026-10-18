@@ -22,7 +22,7 @@ class CapabilitiesTests(unittest.IsolatedAsyncioTestCase):
                     await agent.answer('Можешь читать почту?')
                     instructions = create.call_args.kwargs['instructions']
                     self.assertIn(agent.capabilities, instructions)
-                    self.assertIn('ещё не реализована', instructions)
+                    self.assertIn('Отправка писем, скачивание вложений', instructions)
                     self.assertIn('НЕ подключено' if not connected else 'создание заметок Gmail подключено', instructions)
                     store.clear()
                     await agent.answer('Что умеешь?')
