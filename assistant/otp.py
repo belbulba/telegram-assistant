@@ -26,6 +26,9 @@ def extract_code(subject, text):
                 combined[max(0, ctx.start()-25):ctx.end()+25], re.I)]
     if not contexts:
         return None
+    # In Gaijin's Russian template the code appears before its label, with
+    # extra greeting and table text between them after HTML is converted.
+    max_distance = 250 if re.search(r'код\s+подтверждения\s+для\s+входа', combined, re.I) else 100
     candidates = []
     for match in CANDIDATE.finditer(combined):
         value = match.group()
@@ -34,7 +37,7 @@ def extract_code(subject, text):
             continue
         # Avoid unrelated numbers far from the code wording.
         distance = min(max(0, match.start() - ctx.end(), ctx.start() - match.end()) for ctx in contexts)
-        if distance <= 100:
+        if distance <= max_distance:
             candidates.append((distance, normalized))
     if not candidates:
         return None

@@ -19,6 +19,24 @@ def mail(subject='Your verification code', body='Your verification code is 12345
 
 
 class ExtractTests(unittest.TestCase):
+    def test_gaijin_code_before_distant_russian_label(self):
+        # Synthetic text matching the measured 152-character HTML conversion gap.
+        body = 'AB12CD' + (' ' * 152) + 'Код подтверждения для входа'
+        self.assertEqual(extract_code('Gaijin', body), 'AB12CD')
+        self.assertEqual(extract_code('Gaijin', body.replace('AB12CD', '654321')), '654321')
+
+    def test_extended_distance_remains_bounded_and_ambiguous_codes_rejected(self):
+        self.assertIsNone(extract_code('Gaijin', '123456' + ' ' * 251 + 'Код подтверждения для входа'))
+        self.assertIsNone(extract_code('Gaijin', '123456 654321' + ' ' * 152 + 'Код подтверждения для входа'))
+        self.assertIsNone(extract_code('Login', '123456' + ' ' * 152 + 'Your verification code'))
+
+    def test_gaijin_html_notification(self):
+        message = mail(subject='Gaijin account', body='')
+        message['payload']['mimeType'] = 'text/html'
+        html = '<table><tr><td>AB12CD</td></tr><tr><td>' + ' ' * 152 + 'Код подтверждения для входа</td></tr></table>'
+        message['payload']['body']['data'] = base64.urlsafe_b64encode(html.encode()).decode()
+        self.assertIn('Код: AB12CD', notification(message))
+
     def test_russian_english_and_grouped_codes(self):
         for subject, body, expected in [
             ('Вход', 'Ваш одноразовый временный код: 654321. Действует 10 минут.', '654321'),
