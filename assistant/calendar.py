@@ -9,16 +9,15 @@ class Calendar:
         self.auth = auth
         self.tz = ZoneInfo(timezone)
 
-    async def request(self, method, path, scopes=None, **kwargs):
-        token = await asyncio.to_thread(self.auth.token, scopes) if scopes else await asyncio.to_thread(self.auth.token)
+    async def request(self, method, path, **kwargs):
+        token = await asyncio.to_thread(self.auth.token)
         headers = {'Authorization': 'Bearer ' + token, 'Prefer': 'outlook.timezone="UTC"'}
         headers.update(kwargs.pop('headers', {}))
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.request(method, 'https://graph.microsoft.com/v1.0' + path,
                 headers=headers, **kwargs)
         if response.is_error:
-            permission = 'ShortNotes.ReadWrite' if scopes else 'Calendars.ReadWrite'
-            raise RuntimeError(f'Outlook вернул HTTP {response.status_code}. Проверьте авторизацию и права {permission}.')
+            raise RuntimeError(f'Outlook вернул HTTP {response.status_code}. Проверьте авторизацию и права Calendars.ReadWrite.')
         return response.json() if response.content else {'status': 'deleted'}
 
     def instant(self, value):
