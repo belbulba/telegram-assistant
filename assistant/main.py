@@ -48,6 +48,13 @@ async def send(message, text, *, formatted=False, **kwargs):
 
 
 async def apply_confirmation(pending, calendar, gmail):
+    if pending['action'] == 'update_note':
+        if not gmail:
+            raise RuntimeError('Gmail не подключён.')
+        result = await gmail.update_note(**pending['args'])
+        if result['status'] == 'partial':
+            return result['warning']
+        return 'Готово: заметка изменена в Gmail / Notes. Прежняя версия сохранена в корзине Gmail.'
     if pending['action'] == 'trash_email':
         if not gmail:
             raise RuntimeError('Gmail не подключён.')
@@ -221,7 +228,7 @@ def main():
         async with mutex:
             choice, key = query.data.split(':', 1)
             pending = store.take(key)
-            if not pending or pending.get('action') not in ('update_event', 'delete_event', 'trash_email'):
+            if not pending or pending.get('action') not in ('update_event', 'delete_event', 'trash_email', 'update_note'):
                 await query.edit_message_text('Подтверждение истекло или уже использовано.')
                 return
             if choice == 'no':

@@ -6,6 +6,8 @@ from email.utils import formatdate, make_msgid
 from email.header import decode_header, make_header
 from html.parser import HTMLParser
 import html
+import hashlib
+import json
 import re
 from urllib.parse import quote
 import uuid
@@ -88,7 +90,7 @@ def summary(message):
             'unread': 'UNREAD' in message.get('labelIds', [])}
 
 
-def note_message(title, content, address):
+def note_message(title, content, address, note_uuid=None):
     if not isinstance(title, str) or not title.strip() or '\n' in title or '\r' in title or len(title) > 500:
         raise ValueError('Название заметки: от 1 до 500 символов, без перевода строки.')
     if not isinstance(content, str) or not content.strip() or len(content) > 100000:
@@ -99,7 +101,7 @@ def note_message(title, content, address):
     message['Date'] = formatdate(usegmt=True)
     message['Message-ID'] = make_msgid()
     message['X-Uniform-Type-Identifier'] = 'com.apple.mail-note'
-    message['X-Universally-Unique-Identifier'] = str(uuid.uuid4()).upper()
+    message['X-Universally-Unique-Identifier'] = str(uuid.UUID(note_uuid) if note_uuid else uuid.uuid4()).upper()
     body = html.escape(content).replace('\r\n', '\n').replace('\r', '\n').replace('\n', '<br>')
     message.set_content('<html><body><div>' + html.escape(title.strip()) + '</div><div><br></div><div>' + body + '</div></body></html>', subtype='html', charset='utf-8')
     return base64.urlsafe_b64encode(message.as_bytes()).decode('ascii')
@@ -120,6 +122,84 @@ class Gmail:
         if response.is_error:
             raise GmailError(response.status_code)
         return response.json() if response.content else {'status': 'completed'}
+
+    @staticmethod
+    def note_version(message):
+        return hashlib.sha256(json.dumps({'id': message['id'], 'payload': message.get('payload', {})},
+                                       sort_keys=True, ensure_ascii=False).encode()).hexdigest()
+
+    async def editable_note(self, message_id):
+        message = await self.get_message(message_id)
+        label = await self.notes_label()
+        if not label or label not in message.get('labelIds', []) or set(message.get('labelIds', [])) & {'TRASH', 'SPAM', 'DRAFT'}:
+            raise ValueError('Заметка больше не находится в Notes. Найдите и прочитайте её заново.')
+        def has_attachment(part):
+            mime = part.get('mimeType', '')
+            if (part.get('filename') or part.get('body', {}).get('attachmentId') or
+                (mime and not mime.startswith(('text/', 'multipart/')))):
+                return True
+            if mime == 'text/html':
+                data = part.get('body', {}).get('data', '')
+                try:
+                    source = base64.urlsafe_b64decode(data + '=' * (-len(data) % 4)).decode('utf-8', errors='replace')
+                except ValueError:
+                    return True
+                if re.search(r'<\s*(?:img|svg|video|audio|object|iframe)\b', source, re.I):
+                    return True
+            return any(has_attachment(p) for p in part.get('parts', []))
+        if has_attachment(message.get('payload', {})):
+            raise ValueError('Редактирование заметок с вложениями не поддерживается.')
+        text = body_text(message.get('payload', {}))
+        if not text or len(text) > 20000:
+            raise ValueError('Безопасное редактирование доступно для текстовых заметок до 20000 символов после чтения.')
+        return message
+
+    async def prepare_note_update(self, message_id, title, content, expected_version):
+        note_message(title, content, 'validation@example.invalid')
+        if len(content) > 19000:
+            raise ValueError('Новый текст заметки должен быть не длиннее 19000 символов.')
+        old = await self.editable_note(message_id)
+        if self.note_version(old) != expected_version:
+            raise ValueError('Заметка изменилась после чтения. Прочитайте её заново перед изменением.')
+        return {'message_id': message_id, 'title': title.strip(), 'content': content, 'expected_version': expected_version}
+
+    async def update_note(self, message_id, title, content, expected_version):
+        await self.prepare_note_update(message_id, title, content, expected_version)
+        old = await self.editable_note(message_id)
+        if self.note_version(old) != expected_version:
+            raise ValueError('Заметка изменилась после подтверждения. Найдите её заново.')
+        h = headers(old)
+        identity = h.get('x-universally-unique-identifier')
+        if not identity:
+            identity = str(uuid.uuid5(uuid.NAMESPACE_URL, 'gmail-note:' + message_id))
+        profile = await self.request('GET', 'profile')
+        raw = note_message(title, content, profile['emailAddress'], note_uuid=identity)
+        identity = str(uuid.UUID(identity)).upper()
+        labels = [label for label in old['labelIds'] if label not in {'TRASH', 'SPAM', 'DRAFT', 'INBOX', 'SENT'}]
+        # Gmail messages are immutable: insert a replacement before retiring the original.
+        result = await self.request('POST', 'messages', json={'raw': raw, 'labelIds': labels})
+        if not result.get('id') or result['id'] == message_id:
+            raise RuntimeError('Gmail не подтвердил новую версию. Прежняя заметка не удалялась; проверьте Notes перед повтором.')
+        saved = {'id': result['id'], 'previous_id': message_id, 'title': title.strip()}
+        try:
+            replacement = await self.get_message(result['id'])
+            note_label = await self.notes_label()
+            expected_text = re.sub(r'\n[ \t]*\n(?:[ \t]*\n)+', '\n\n', title.strip() + '\n\n' + content.replace('\r\n', '\n').replace('\r', '\n')).strip()
+            if (not note_label or note_label not in replacement.get('labelIds', []) or
+                set(replacement.get('labelIds', [])) & {'TRASH', 'SPAM'} or
+                headers(replacement).get('x-universally-unique-identifier') != identity or
+                headers(replacement).get('subject') != title.strip() or
+                body_text(replacement.get('payload', {})) != expected_text):
+                raise ValueError('Не удалось проверить содержимое новой версии.')
+            current = await self.editable_note(message_id)
+            if self.note_version(current) != expected_version:
+                raise ValueError('Прежняя заметка изменилась во время сохранения.')
+            retired = await self.request('POST', 'messages/' + quote(message_id, safe='') + '/trash')
+            if 'TRASH' not in retired.get('labelIds', []):
+                raise RuntimeError('Перенос прежней версии в корзину не подтверждён.')
+        except (RuntimeError, ValueError):
+            return {**saved, 'status': 'partial', 'warning': 'Новая версия записана, но полное завершение изменения не подтверждено. Проверьте Notes и корзину Gmail; повторять изменение автоматически нельзя.'}
+        return {**saved, 'status': 'updated'}
 
     async def labels(self):
         return {'labels': (await self.request('GET', 'labels')).get('labels', [])}
@@ -166,7 +246,8 @@ class Gmail:
             raise ValueError('Это ' + ('заметка; используйте read_note.' if is_note else 'письмо, а не заметка.'))
         text = body_text(message.get('payload', {}))
         return {**summary(message), 'text': text[:20000], 'truncated': len(text) > 20000,
-                'labels': message.get('labelIds', []), 'kind': 'note' if is_note else 'email'}
+                'labels': message.get('labelIds', []), 'kind': 'note' if is_note else 'email',
+                **({'edit_version': self.note_version(message)} if is_note else {})}
 
     async def modify_email(self, message_id, action, label_name=''):
         message = await self.read(message_id)
